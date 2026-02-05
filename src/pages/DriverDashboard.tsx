@@ -1,0 +1,283 @@
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Ambulance, LogOut, MapPin, Phone, Clock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface EmergencyRequest {
+  id: string;
+  tracking_code: string;
+  requester_name: string | null;
+  requester_phone: string;
+  emergency_type: string;
+  description: string | null;
+  location_address: string | null;
+  location_lat: number;
+  location_lng: number;
+  status: string;
+  created_at: string;
+}
+
+interface AmbulanceData {
+  id: string;
+  plate_number: string;
+  status: string;
+}
+
+const statusColors: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  assigned: 'bg-blue-100 text-blue-800',
+  en_route: 'bg-orange-100 text-orange-800',
+  arrived: 'bg-emerald-100 text-emerald-800',
+  completed: 'bg-green-100 text-green-800',
+};
+
+export default function DriverDashboard() {
+  const { user, role, loading: authLoading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState<EmergencyRequest[]>([]);
+  const [ambulance, setAmbulance] = useState<AmbulanceData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading && (!user || role !== 'driver')) {
+      navigate('/login');
+    }
+  }, [user, role, authLoading, navigate]);
+
+  const fetchData = async () => {
+    if (!user) return;
+    
+    // Fetch driver's ambulance
+    const { data: ambData } = await supabase
+      .from('ambulances')
+      .select('*')
+      .eq('driver_id', user.id)
+      .single();
+    
+    if (ambData) {
+      setAmbulance(ambData);
+    }
+
+    // Fetch assigned requests
+    const { data: reqData } = await supabase
+      .from('emergency_requests')
+      .select('*')
+      .eq('assigned_driver_id', user.id)
+      .in('status', ['assigned', 'en_route', 'arrived'])
+      .order('created_at', { ascending: false });
+    
+    setRequests((reqData as EmergencyRequest[]) || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel('driver-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'emergency_requests',
+          filter: `assigned_driver_id=eq.${user?.id}`,
+        },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  const updateRequestStatus = async (requestId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('emergency_requests')
+      .update({ 
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : null
+      })
+      .eq('id', requestId);
+    
+    if (error) {
+      toast.error('Failed to update status');
+    } else {
+      toast.success('Status updated');
+      
+      // Update ambulance status based on request status
+      if (ambulance) {
+        let ambStatus = 'busy';
+        if (newStatus === 'completed') ambStatus = 'available';
+        else if (newStatus === 'en_route') ambStatus = 'en_route';
+        else if (newStatus === 'arrived') ambStatus = 'arrived';
+        
+        await supabase
+          .from('ambulances')
+          .update({ status: ambStatus })
+          .eq('id', ambulance.id);
+      }
+      
+      fetchData();
+    }
+  };
+
+  const openMaps = (lat: number, lng: number) => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/30">
+      {/* Header */}
+      <header className="border-b bg-background sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 emergency-gradient rounded-lg">
+              <Ambulance className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <div>
+              <span className="font-display font-bold block">SwiftCare</span>
+              <span className="text-xs text-muted-foreground">Driver Dashboard</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {ambulance && (
+              <Badge variant="outline" className="font-mono">
+                {ambulance.plate_number}
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-6 max-w-2xl">
+        {/* Ambulance Status */}
+        {ambulance && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Your Ambulance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-mono text-lg font-semibold">{ambulance.plate_number}</p>
+                  <p className="text-sm text-muted-foreground capitalize">Status: {ambulance.status.replace('_', ' ')}</p>
+                </div>
+                <Badge className={statusColors[ambulance.status] || 'bg-gray-100'}>
+                  {ambulance.status.replace('_', ' ')}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Active Requests */}
+        <h2 className="font-display font-semibold text-lg mb-4">Active Assignments</h2>
+        
+        {requests.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No active assignments</p>
+              <p className="text-sm text-muted-foreground mt-1">New emergencies will appear here</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {requests.map(request => (
+              <Card key={request.id} className="shadow-md">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardDescription>{request.tracking_code}</CardDescription>
+                      <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
+                    </div>
+                    <Badge className={statusColors[request.status]}>
+                      {request.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <a href={`tel:${request.requester_phone}`} className="text-primary hover:underline">
+                        {request.requester_phone}
+                      </a>
+                    </div>
+                    {request.requester_name && (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{request.requester_name}</span>
+                      </div>
+                    )}
+                    {request.location_address && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span>{request.location_address}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span>{new Date(request.created_at).toLocaleString()}</span>
+                    </div>
+                    {request.description && (
+                      <p className="text-muted-foreground mt-2 p-2 bg-muted rounded">
+                        {request.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openMaps(request.location_lat, request.location_lng)}
+                    >
+                      <MapPin className="h-4 w-4 mr-1" />
+                      Navigate
+                    </Button>
+                    
+                    <Select 
+                      value={request.status}
+                      onValueChange={(value) => updateRequestStatus(request.id, value)}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en_route">En Route</SelectItem>
+                        <SelectItem value="arrived">Arrived</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
