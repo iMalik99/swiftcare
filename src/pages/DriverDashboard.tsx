@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Ambulance, LogOut, MapPin, Phone, Clock, User, AlertCircle, Loader2 } from 'lucide-react';
+import { Ambulance, LogOut, MapPin, Phone, Clock, User, AlertCircle, Loader2, Navigation } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import AmbulanceMap, { calculateDistance } from '@/components/AmbulanceMap';
 
 interface EmergencyRequest {
   id: string;
@@ -27,6 +28,8 @@ interface AmbulanceData {
   id: string;
   plate_number: string;
   status: string;
+  current_lat: number | null;
+  current_lng: number | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -142,6 +145,19 @@ export default function DriverDashboard() {
     );
   }
 
+  const activeRequest = requests[0]; // Primary active request
+  const driverLocation = ambulance ? { lat: ambulance.current_lat || 9.0579, lng: ambulance.current_lng || 7.4951 } : null;
+  const requesterLocation = activeRequest ? { lat: activeRequest.location_lat, lng: activeRequest.location_lng } : null;
+  
+  const distanceToRequester = driverLocation && requesterLocation
+    ? calculateDistance(driverLocation.lat, driverLocation.lng, requesterLocation.lat, requesterLocation.lng)
+    : null;
+
+  const mapLocations = [
+    ...(driverLocation ? [{ lat: driverLocation.lat, lng: driverLocation.lng, label: 'Your Location', type: 'driver' as const }] : []),
+    ...(requesterLocation ? [{ lat: requesterLocation.lat, lng: requesterLocation.lng, label: 'Requester', type: 'requester' as const }] : []),
+  ];
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
@@ -170,7 +186,7 @@ export default function DriverDashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-2xl">
+      <main className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Ambulance Status */}
         {ambulance && (
           <Card className="mb-6">
@@ -191,6 +207,52 @@ export default function DriverDashboard() {
           </Card>
         )}
 
+        {/* Map View for Active Assignment */}
+        {activeRequest && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Navigation</CardTitle>
+                  <CardDescription>
+                    {distanceToRequester !== null && (
+                      <span className="text-primary font-semibold">
+                        {distanceToRequester.toFixed(1)} km to requester
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                <Button 
+                  onClick={() => openMaps(activeRequest.location_lat, activeRequest.location_lng)}
+                  className="emergency-gradient"
+                >
+                  <Navigation className="h-4 w-4 mr-2" />
+                  Get Directions
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] rounded-lg overflow-hidden">
+                <AmbulanceMap 
+                  locations={mapLocations}
+                  showRoute={true}
+                  driverLocation={driverLocation || undefined}
+                  requesterLocation={requesterLocation || undefined}
+                  zoom={13}
+                />
+              </div>
+              <div className="mt-3 flex gap-4 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(173, 80%, 30%)' }}></span> Your location
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-destructive"></span> Requester
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Active Requests */}
         <h2 className="font-display font-semibold text-lg mb-4">Active Assignments</h2>
         
@@ -204,77 +266,88 @@ export default function DriverDashboard() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {requests.map(request => (
-              <Card key={request.id} className="shadow-md">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardDescription>{request.tracking_code}</CardDescription>
-                      <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
-                    </div>
-                    <Badge className={statusColors[request.status]}>
-                      {request.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <a href={`tel:${request.requester_phone}`} className="text-primary hover:underline">
-                        {request.requester_phone}
-                      </a>
-                    </div>
-                    {request.requester_name && (
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{request.requester_name}</span>
-                      </div>
-                    )}
-                    {request.location_address && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{request.location_address}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{new Date(request.created_at).toLocaleString()}</span>
-                    </div>
-                    {request.description && (
-                      <p className="text-muted-foreground mt-2 p-2 bg-muted rounded">
-                        {request.description}
-                      </p>
-                    )}
-                  </div>
+            {requests.map(request => {
+              const distance = driverLocation 
+                ? calculateDistance(driverLocation.lat, driverLocation.lng, request.location_lat, request.location_lng)
+                : null;
 
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => openMaps(request.location_lat, request.location_lng)}
-                    >
-                      <MapPin className="h-4 w-4 mr-1" />
-                      Navigate
-                    </Button>
-                    
-                    <Select 
-                      value={request.status}
-                      onValueChange={(value) => updateRequestStatus(request.id, value)}
-                    >
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en_route">En Route</SelectItem>
-                        <SelectItem value="arrived">Arrived</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              return (
+                <Card key={request.id} className="shadow-md">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardDescription>{request.tracking_code}</CardDescription>
+                        <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
+                        {distance !== null && (
+                          <p className="text-sm text-primary font-semibold mt-1">
+                            {distance.toFixed(1)} km away
+                          </p>
+                        )}
+                      </div>
+                      <Badge className={statusColors[request.status]}>
+                        {request.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <a href={`tel:${request.requester_phone}`} className="text-primary hover:underline font-medium">
+                          {request.requester_phone}
+                        </a>
+                      </div>
+                      {request.requester_name && (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>{request.requester_name}</span>
+                        </div>
+                      )}
+                      {request.location_address && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span>{request.location_address}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span>{new Date(request.created_at).toLocaleString()}</span>
+                      </div>
+                      {request.description && (
+                        <p className="text-muted-foreground mt-2 p-2 bg-muted rounded">
+                          {request.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => openMaps(request.location_lat, request.location_lng)}
+                      >
+                        <MapPin className="h-4 w-4 mr-1" />
+                        Navigate
+                      </Button>
+                      
+                      <Select 
+                        value={request.status}
+                        onValueChange={(value) => updateRequestStatus(request.id, value)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="en_route">En Route</SelectItem>
+                          <SelectItem value="arrived">Arrived</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>

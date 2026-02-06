@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Ambulance, LogOut, Users, Activity, Truck, Plus, AlertCircle, Loader2, MapPin, Clock, Phone, User } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import AdminHeader from '@/components/admin/AdminHeader';
+import StatsCards from '@/components/admin/StatsCards';
+import RequestsTab from '@/components/admin/RequestsTab';
+import AmbulancesTab from '@/components/admin/AmbulancesTab';
+import DriversTab from '@/components/admin/DriversTab';
 
 interface EmergencyRequest {
   id: string;
@@ -21,6 +19,8 @@ interface EmergencyRequest {
   emergency_type: string;
   status: string;
   created_at: string;
+  location_lat: number;
+  location_lng: number;
   assigned_ambulance_id: string | null;
 }
 
@@ -29,6 +29,8 @@ interface AmbulanceData {
   plate_number: string;
   status: string;
   driver_id: string | null;
+  current_lat: number | null;
+  current_lng: number | null;
 }
 
 interface DriverProfile {
@@ -58,13 +60,6 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // New driver form
-  const [newDriverEmail, setNewDriverEmail] = useState('');
-  const [newDriverPassword, setNewDriverPassword] = useState('');
-  const [newDriverName, setNewDriverName] = useState('');
-  const [newDriverPhone, setNewDriverPhone] = useState('');
-  const [creatingDriver, setCreatingDriver] = useState(false);
-  
   // New ambulance form
   const [newPlateNumber, setNewPlateNumber] = useState('');
   const [creatingAmbulance, setCreatingAmbulance] = useState(false);
@@ -93,12 +88,24 @@ export default function AdminDashboard() {
     
     setAmbulances((ambData as AmbulanceData[]) || []);
 
-    // Fetch all driver profiles
-    const { data: driverData } = await supabase
-      .from('profiles')
-      .select('*');
+    // Fetch only driver profiles (by joining with user_roles to filter drivers only)
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'driver');
     
-    setDrivers((driverData as DriverProfile[]) || []);
+    const driverUserIds = roleData?.map(r => r.user_id) || [];
+    
+    if (driverUserIds.length > 0) {
+      const { data: driverData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', driverUserIds);
+      
+      setDrivers((driverData as DriverProfile[]) || []);
+    } else {
+      setDrivers([]);
+    }
     
     setLoading(false);
   };
@@ -196,73 +203,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      {/* Header */}
-      <header className="border-b bg-background sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 emergency-gradient rounded-lg">
-              <Ambulance className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-display font-bold block">SwiftCare</span>
-              <span className="text-xs text-muted-foreground">Admin Dashboard</span>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </header>
+      <AdminHeader onSignOut={signOut} />
 
       <main className="container mx-auto px-4 py-6">
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending</p>
-                  <p className="text-2xl font-bold">{pendingRequests.length}</p>
-                </div>
-                <AlertCircle className="h-8 w-8 text-amber-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Active</p>
-                  <p className="text-2xl font-bold">{activeRequests.length}</p>
-                </div>
-                <Activity className="h-8 w-8 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Available</p>
-                  <p className="text-2xl font-bold">{availableAmbulances.length}</p>
-                </div>
-                <Truck className="h-8 w-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Drivers</p>
-                  <p className="text-2xl font-bold">{drivers.length}</p>
-                </div>
-                <Users className="h-8 w-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <StatsCards
+          pendingCount={pendingRequests.length}
+          activeCount={activeRequests.length}
+          availableCount={availableAmbulances.length}
+          driversCount={drivers.length}
+        />
 
         <Tabs defaultValue="requests" className="space-y-4">
           <TabsList>
@@ -272,164 +221,30 @@ export default function AdminDashboard() {
           </TabsList>
 
           <TabsContent value="requests" className="space-y-4">
-            {requests.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No emergency requests yet</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {requests.map(request => (
-                  <Card key={request.id}>
-                    <CardContent className="py-4">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm">{request.tracking_code}</span>
-                            <Badge className={statusColors[request.status]}>
-                              {request.status.replace('_', ' ')}
-                            </Badge>
-                          </div>
-                          <p className="font-semibold">{request.emergency_type}</p>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {request.requester_phone}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {new Date(request.created_at).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {request.status === 'pending' && (
-                          <Select onValueChange={(value) => assignAmbulance(request.id, value)}>
-                            <SelectTrigger className="w-48">
-                              <SelectValue placeholder="Assign ambulance" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableAmbulances.map(amb => (
-                                <SelectItem key={amb.id} value={amb.id}>
-                                  {amb.plate_number}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <RequestsTab
+              requests={requests}
+              availableAmbulances={availableAmbulances}
+              statusColors={statusColors}
+              onAssignAmbulance={assignAmbulance}
+            />
           </TabsContent>
 
           <TabsContent value="ambulances" className="space-y-4">
-            <div className="flex justify-end">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Ambulance
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Ambulance</DialogTitle>
-                    <DialogDescription>Enter the ambulance plate number</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Plate Number</Label>
-                      <Input
-                        placeholder="ABC-123-XY"
-                        value={newPlateNumber}
-                        onChange={e => setNewPlateNumber(e.target.value)}
-                        className="uppercase"
-                      />
-                    </div>
-                    <Button onClick={createAmbulance} disabled={creatingAmbulance} className="w-full">
-                      {creatingAmbulance && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Add Ambulance
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              {ambulances.map(ambulance => (
-                <Card key={ambulance.id}>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="font-mono text-lg font-semibold">{ambulance.plate_number}</p>
-                        <Badge className={statusColors[ambulance.status] || 'bg-gray-100'}>
-                          {ambulance.status.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      <Truck className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs">Assigned Driver</Label>
-                      <Select 
-                        value={ambulance.driver_id || ''} 
-                        onValueChange={(value) => assignDriverToAmbulance(ambulance.id, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="No driver assigned" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">No driver</SelectItem>
-                          {drivers.map(driver => (
-                            <SelectItem key={driver.user_id} value={driver.user_id}>
-                              {driver.full_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <AmbulancesTab
+              ambulances={ambulances}
+              drivers={drivers}
+              activeRequests={activeRequests}
+              statusColors={statusColors}
+              newPlateNumber={newPlateNumber}
+              setNewPlateNumber={setNewPlateNumber}
+              creatingAmbulance={creatingAmbulance}
+              onCreateAmbulance={createAmbulance}
+              onAssignDriver={assignDriverToAmbulance}
+            />
           </TabsContent>
 
           <TabsContent value="drivers" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Driver Management</CardTitle>
-                <CardDescription>
-                  To add a new driver, create their account in the Lovable Cloud backend, 
-                  then add their role and profile.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {drivers.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No drivers registered yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {drivers.map(driver => (
-                      <div key={driver.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-muted rounded-full">
-                            <User className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{driver.full_name}</p>
-                            {driver.phone && <p className="text-sm text-muted-foreground">{driver.phone}</p>}
-                          </div>
-                        </div>
-                        <Badge variant="outline">Driver</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <DriversTab drivers={drivers} />
           </TabsContent>
         </Tabs>
       </main>
