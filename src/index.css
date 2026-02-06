@@ -15,10 +15,10 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 10%;
     
-    --primary: 0 84% 50%;
+    --primary: 173 80% 40%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 210 60% 45%;
+    --secondary: 173 80% 40%;
     --secondary-foreground: 0 0% 100%;
     
     --muted: 210 20% 96%;
@@ -32,14 +32,14 @@
     
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 0 84% 50%;
+    --ring: 173 80% 40%;
     
     --radius: 0.75rem;
     
-    --emergency-red: 0 84% 50%;
-    --emergency-red-dark: 0 84% 40%;
-    --medical-blue: 210 60% 45%;
-    --medical-blue-light: 210 60% 95%;
+    --emergency-teal: 173 80% 40%;
+    --emergency-teal-dark: 173 80% 30%;
+    --medical-teal: 173 80% 40%;
+    --medical-teal-light: 173 80% 95%;
     --success-green: 160 70% 40%;
     --warning-amber: 38 92% 50%;
 
@@ -63,10 +63,10 @@
     --popover: 220 20% 10%;
     --popover-foreground: 0 0% 95%;
     
-    --primary: 0 84% 55%;
+    --primary: 173 80% 45%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 210 60% 50%;
+    --secondary: 173 80% 45%;
     --secondary-foreground: 0 0% 100%;
     
     --muted: 220 15% 15%;
@@ -80,7 +80,7 @@
     
     --border: 220 15% 20%;
     --input: 220 15% 20%;
-    --ring: 0 84% 55%;
+    --ring: 173 80% 45%;
 
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -110,15 +110,15 @@
 
 @layer utilities {
   .emergency-gradient {
-    background: linear-gradient(135deg, hsl(0 84% 50%), hsl(0 84% 40%));
+    background: linear-gradient(135deg, hsl(173 80% 40%), hsl(173 80% 30%));
   }
   
   .hero-gradient {
-    background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 60% 97%) 100%);
+    background: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(173 80% 97%) 100%);
   }
   
   .shadow-emergency {
-    box-shadow: 0 8px 30px -4px hsl(0 84% 50% / 0.3);
+    box-shadow: 0 8px 30px -4px hsl(173 80% 40% / 0.3);
   }
   
   .animate-pulse-emergency {
