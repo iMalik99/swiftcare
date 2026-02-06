@@ -57,12 +57,12 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         emergency: {
-          DEFAULT: "hsl(var(--emergency-red))",
-          dark: "hsl(var(--emergency-red-dark))",
+          DEFAULT: "hsl(var(--emergency-teal))",
+          dark: "hsl(var(--emergency-teal-dark))",
         },
         medical: {
-          DEFAULT: "hsl(var(--medical-blue))",
-          light: "hsl(var(--medical-blue-light))",
+          DEFAULT: "hsl(var(--medical-teal))",
+          light: "hsl(var(--medical-teal-light))",
         },
         success: "hsl(var(--success-green))",
         warning: "hsl(var(--warning-amber))",
