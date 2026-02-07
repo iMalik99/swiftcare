@@ -96,10 +96,9 @@ export default function HomePage() {
               <span className="font-display font-semibold">SwiftCare</span>
               <span className="text-muted-foreground text-sm">• Abuja, FCT</span>
             </div>
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <Link to="/track" className="hover:text-foreground transition-colors">Track Request</Link>
-              <Link to="/login" className="hover:text-foreground transition-colors">Staff Portal</Link>
-            </div>
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} SwiftCare. All rights reserved.
+          </p>
           </div>
         </div>
       </footer>

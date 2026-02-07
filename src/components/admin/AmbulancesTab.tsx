@@ -40,6 +40,7 @@ interface AmbulancesTabProps {
   ambulances: AmbulanceData[];
   drivers: DriverProfile[];
   activeRequests: EmergencyRequest[];
+  allPendingRequests: EmergencyRequest[];
   statusColors: Record<string, string>;
   newPlateNumber: string;
   setNewPlateNumber: (value: string) => void;
@@ -52,6 +53,7 @@ export default function AmbulancesTab({
   ambulances,
   drivers,
   activeRequests,
+  allPendingRequests,
   statusColors,
   newPlateNumber,
   setNewPlateNumber,
@@ -59,6 +61,9 @@ export default function AmbulancesTab({
   onCreateAmbulance,
   onAssignDriver,
 }: AmbulancesTabProps) {
+  // Combine active and pending requests for the map
+  const allVisibleRequests = [...activeRequests, ...allPendingRequests];
+  
   // Prepare map locations
   const mapLocations = [
     ...ambulances.map(amb => ({
@@ -68,10 +73,10 @@ export default function AmbulancesTab({
       type: 'ambulance' as const,
       status: amb.status,
     })),
-    ...activeRequests.map(req => ({
+    ...allVisibleRequests.map(req => ({
       lat: req.location_lat,
       lng: req.location_lng,
-      label: `${req.tracking_code} - ${req.emergency_type}`,
+      label: `${req.tracking_code} - ${req.emergency_type} (${req.status})`,
       type: 'requester' as const,
     })),
   ];
