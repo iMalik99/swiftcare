@@ -20,6 +20,10 @@ interface EmergencyRequest {
   assigned_ambulance_id: string | null;
 }
 
+interface AmbulanceInfo {
+  plate_number: string;
+}
+
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   pending: { label: 'Searching for Ambulance', icon: <Clock className="h-5 w-5" />, color: 'bg-amber-100 text-amber-800' },
   assigned: { label: 'Ambulance Assigned', icon: <Truck className="h-5 w-5" />, color: 'bg-blue-100 text-blue-800' },
@@ -33,6 +37,7 @@ export default function TrackRequest() {
   const { trackingCode } = useParams();
   const [searchCode, setSearchCode] = useState(trackingCode || '');
   const [request, setRequest] = useState<EmergencyRequest | null>(null);
+  const [ambulanceInfo, setAmbulanceInfo] = useState<AmbulanceInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
@@ -47,8 +52,22 @@ export default function TrackRequest() {
     if (error || !data) {
       toast.error('Request not found. Please check your tracking code.');
       setRequest(null);
+      setAmbulanceInfo(null);
     } else {
-      setRequest(data as EmergencyRequest);
+      const reqData = data as EmergencyRequest;
+      setRequest(reqData);
+      
+      // Fetch ambulance plate number if assigned
+      if (reqData.assigned_ambulance_id) {
+        const { data: ambData } = await supabase
+          .from('ambulances')
+          .select('plate_number')
+          .eq('id', reqData.assigned_ambulance_id)
+          .single();
+        setAmbulanceInfo(ambData as AmbulanceInfo | null);
+      } else {
+        setAmbulanceInfo(null);
+      }
     }
     setSearched(true);
     setLoading(false);
@@ -74,8 +93,20 @@ export default function TrackRequest() {
           table: 'emergency_requests',
           filter: `id=eq.${request.id}`,
         },
-        (payload) => {
-          setRequest(payload.new as EmergencyRequest);
+        async (payload) => {
+          const updated = payload.new as EmergencyRequest;
+          setRequest(updated);
+          
+          // Fetch ambulance info on assignment
+          if (updated.assigned_ambulance_id) {
+            const { data: ambData } = await supabase
+              .from('ambulances')
+              .select('plate_number')
+              .eq('id', updated.assigned_ambulance_id)
+              .single();
+            setAmbulanceInfo(ambData as AmbulanceInfo | null);
+          }
+          
           toast.info('Status updated!');
         }
       )
@@ -183,6 +214,14 @@ export default function TrackRequest() {
                   <AlertCircle className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{request.emergency_type}</span>
                 </div>
+                {ambulanceInfo && (
+                  <div className="flex items-center gap-3">
+                    <Truck className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">
+                      Ambulance: <span className="font-mono text-primary">{ambulanceInfo.plate_number}</span>
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{request.requester_phone}</span>

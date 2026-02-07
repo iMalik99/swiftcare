@@ -143,8 +143,16 @@ export default function DriverDashboard() {
     }
   };
 
-  const openMaps = (lat: number, lng: number) => {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+  const openMaps = (destLat: number, destLng: number) => {
+    const originParam = driverLocation 
+      ? `&origin=${driverLocation.lat},${driverLocation.lng}` 
+      : '';
+    window.open(`https://www.google.com/maps/dir/?api=1${originParam}&destination=${destLat},${destLng}&travelmode=driving`, '_blank');
+  };
+
+  // Estimate ETA: assume average speed of 40 km/h in city traffic
+  const estimateETA = (distanceKm: number): number => {
+    return Math.max(1, Math.round((distanceKm / 40) * 60));
   };
 
   if (authLoading || loading) {
@@ -226,11 +234,17 @@ export default function DriverDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-lg">Navigation</CardTitle>
-                  <CardDescription>
+              <CardDescription>
                     {distanceToRequester !== null && (
-                      <span className="text-primary font-semibold">
-                        {distanceToRequester.toFixed(1)} km to requester
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-primary font-semibold">
+                          {distanceToRequester.toFixed(1)} km away
+                        </span>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-primary font-semibold">
+                          ~{estimateETA(distanceToRequester)} min ETA
+                        </span>
+                      </div>
                     )}
                   </CardDescription>
                 </div>
@@ -292,7 +306,7 @@ export default function DriverDashboard() {
                         <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
                         {distance !== null && (
                           <p className="text-sm text-primary font-semibold mt-1">
-                            {distance.toFixed(1)} km away
+                            {distance.toFixed(1)} km away • ~{estimateETA(distance)} min ETA
                           </p>
                         )}
                       </div>
