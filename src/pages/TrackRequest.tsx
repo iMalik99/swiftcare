@@ -41,6 +41,17 @@ export default function TrackRequest() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  const fetchAmbulanceInfo = async (ambulanceId: string) => {
+    const { data: ambData } = await supabase
+      .from('ambulances')
+      .select('plate_number')
+      .eq('id', ambulanceId)
+      .single();
+    if (ambData) {
+      setAmbulanceInfo(ambData as AmbulanceInfo);
+    }
+  };
+
   const fetchRequest = async (code: string) => {
     setLoading(true);
     const { data, error } = await supabase
@@ -59,12 +70,7 @@ export default function TrackRequest() {
       
       // Fetch ambulance plate number if assigned
       if (reqData.assigned_ambulance_id) {
-        const { data: ambData } = await supabase
-          .from('ambulances')
-          .select('plate_number')
-          .eq('id', reqData.assigned_ambulance_id)
-          .single();
-        setAmbulanceInfo(ambData as AmbulanceInfo | null);
+        await fetchAmbulanceInfo(reqData.assigned_ambulance_id);
       } else {
         setAmbulanceInfo(null);
       }
@@ -79,12 +85,12 @@ export default function TrackRequest() {
     }
   }, [trackingCode]);
 
-  // Realtime subscription
+  // Realtime subscription - re-fetch full data on any update
   useEffect(() => {
     if (!request) return;
 
     const channel = supabase
-      .channel('request-updates')
+      .channel(`request-track-${request.id}`)
       .on(
         'postgres_changes',
         {
@@ -97,14 +103,9 @@ export default function TrackRequest() {
           const updated = payload.new as EmergencyRequest;
           setRequest(updated);
           
-          // Fetch ambulance info on assignment
+          // Always fetch ambulance info when there's an assignment
           if (updated.assigned_ambulance_id) {
-            const { data: ambData } = await supabase
-              .from('ambulances')
-              .select('plate_number')
-              .eq('id', updated.assigned_ambulance_id)
-              .single();
-            setAmbulanceInfo(ambData as AmbulanceInfo | null);
+            await fetchAmbulanceInfo(updated.assigned_ambulance_id);
           }
           
           toast.info('Status updated!');
@@ -208,20 +209,27 @@ export default function TrackRequest() {
                 </div>
               </div>
 
+              {/* Assigned Ambulance - prominent display */}
+              {ambulanceInfo && (
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 emergency-gradient rounded-lg">
+                      <Truck className="h-5 w-5 text-primary-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium">Assigned Ambulance</p>
+                      <p className="text-lg font-mono font-bold text-primary">{ambulanceInfo.plate_number}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Details */}
               <div className="space-y-3 pt-4 border-t">
                 <div className="flex items-center gap-3">
                   <AlertCircle className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{request.emergency_type}</span>
                 </div>
-                {ambulanceInfo && (
-                  <div className="flex items-center gap-3">
-                    <Truck className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">
-                      Ambulance: <span className="font-mono text-primary">{ambulanceInfo.plate_number}</span>
-                    </span>
-                  </div>
-                )}
                 <div className="flex items-center gap-3">
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{request.requester_phone}</span>
