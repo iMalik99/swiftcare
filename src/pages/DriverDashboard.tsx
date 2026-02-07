@@ -147,7 +147,16 @@ export default function DriverDashboard() {
     const originParam = driverLocation 
       ? `&origin=${driverLocation.lat},${driverLocation.lng}` 
       : '';
-    window.open(`https://www.google.com/maps/dir/?api=1${originParam}&destination=${destLat},${destLng}&travelmode=driving`, '_blank');
+    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destLat},${destLng}&travelmode=driving`;
+    
+    // Use anchor element to avoid ERR_BLOCKED_BY_RESPONSE in iframe contexts
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Estimate ETA: assume average speed of 40 km/h in city traffic
