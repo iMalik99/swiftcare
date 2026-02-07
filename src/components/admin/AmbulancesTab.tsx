@@ -197,14 +197,14 @@ export default function AmbulancesTab({
                 <div className="space-y-2">
                   <Label className="text-xs">Assigned Driver</Label>
                   <Select 
-                    value={ambulance.driver_id || ''} 
-                    onValueChange={(value) => onAssignDriver(ambulance.id, value)}
+                    value={ambulance.driver_id || 'none'} 
+                    onValueChange={(value) => onAssignDriver(ambulance.id, value === 'none' ? '' : value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="No driver assigned" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No driver</SelectItem>
+                      <SelectItem value="none">No driver</SelectItem>
                       {drivers.map(driver => (
                         <SelectItem key={driver.user_id} value={driver.user_id}>
                           {driver.full_name}
