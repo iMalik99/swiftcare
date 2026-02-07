@@ -103,6 +103,8 @@ export default function DriverDashboard() {
   }, [user]);
 
   const updateRequestStatus = async (requestId: string, newStatus: string) => {
+    const request = requests.find(r => r.id === requestId);
+    
     const { error } = await supabase
       .from('emergency_requests')
       .update({ 
@@ -116,16 +118,24 @@ export default function DriverDashboard() {
     } else {
       toast.success('Status updated');
       
-      // Update ambulance status based on request status
+      // Update ambulance status and location based on request status
       if (ambulance) {
         let ambStatus = 'busy';
         if (newStatus === 'completed') ambStatus = 'available';
         else if (newStatus === 'en_route') ambStatus = 'en_route';
         else if (newStatus === 'arrived') ambStatus = 'arrived';
         
+        const updateData: Record<string, unknown> = { status: ambStatus };
+        
+        // When arrived, move ambulance location to the requester's location
+        if (newStatus === 'arrived' && request) {
+          updateData.current_lat = request.location_lat;
+          updateData.current_lng = request.location_lng;
+        }
+        
         await supabase
           .from('ambulances')
-          .update({ status: ambStatus })
+          .update(updateData)
           .eq('id', ambulance.id);
       }
       
@@ -146,7 +156,9 @@ export default function DriverDashboard() {
   }
 
   const activeRequest = requests[0]; // Primary active request
-  const driverLocation = ambulance ? { lat: ambulance.current_lat || 9.0579, lng: ambulance.current_lng || 7.4951 } : null;
+  const driverLocation = ambulance && ambulance.current_lat && ambulance.current_lng 
+    ? { lat: ambulance.current_lat, lng: ambulance.current_lng } 
+    : null;
   const requesterLocation = activeRequest ? { lat: activeRequest.location_lat, lng: activeRequest.location_lng } : null;
   
   const distanceToRequester = driverLocation && requesterLocation

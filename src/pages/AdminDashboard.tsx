@@ -234,6 +234,7 @@ export default function AdminDashboard() {
               ambulances={ambulances}
               drivers={drivers}
               activeRequests={activeRequests}
+              allPendingRequests={pendingRequests}
               statusColors={statusColors}
               newPlateNumber={newPlateNumber}
               setNewPlateNumber={setNewPlateNumber}
