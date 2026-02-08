@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       ambulances: {
         Row: {
+          base_lat: number | null
+          base_lng: number | null
           created_at: string
           current_lat: number | null
           current_lng: number | null
@@ -26,6 +28,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          base_lat?: number | null
+          base_lng?: number | null
           created_at?: string
           current_lat?: number | null
           current_lng?: number | null
@@ -36,6 +40,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          base_lat?: number | null
+          base_lng?: number | null
           created_at?: string
           current_lat?: number | null
           current_lng?: number | null
