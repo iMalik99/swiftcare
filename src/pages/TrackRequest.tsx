@@ -209,21 +209,6 @@ export default function TrackRequest() {
                 </div>
               </div>
 
-              {/* Assigned Ambulance - prominent display */}
-              {ambulanceInfo && (
-                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 emergency-gradient rounded-lg">
-                      <Truck className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Assigned Ambulance</p>
-                      <p className="text-lg font-mono font-bold text-primary">{ambulanceInfo.plate_number}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Details */}
               <div className="space-y-3 pt-4 border-t">
                 <div className="flex items-center gap-3">
@@ -252,6 +237,17 @@ export default function TrackRequest() {
                     Requested: {new Date(request.created_at).toLocaleString()}
                   </span>
                 </div>
+
+                {/* Assigned Ambulance Plate Number — right after date/time */}
+                {ambulanceInfo && (
+                  <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <Truck className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Assigned Ambulance</p>
+                      <p className="text-base font-mono font-bold text-primary">{ambulanceInfo.plate_number}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {request.status === 'pending' && (
