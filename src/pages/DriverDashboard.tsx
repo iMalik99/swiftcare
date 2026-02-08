@@ -30,6 +30,8 @@ interface AmbulanceData {
   status: string;
   current_lat: number | null;
   current_lng: number | null;
+  base_lat: number | null;
+  base_lng: number | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -131,6 +133,12 @@ export default function DriverDashboard() {
         if (newStatus === 'arrived' && request) {
           updateData.current_lat = request.location_lat;
           updateData.current_lng = request.location_lng;
+        }
+        
+        // When completed, reset ambulance back to its base station
+        if (newStatus === 'completed' && ambulance.base_lat && ambulance.base_lng) {
+          updateData.current_lat = ambulance.base_lat;
+          updateData.current_lng = ambulance.base_lng;
         }
         
         await supabase
