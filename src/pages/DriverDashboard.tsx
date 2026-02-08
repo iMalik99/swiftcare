@@ -144,10 +144,10 @@ export default function DriverDashboard() {
   };
 
   const openMaps = (destLat: number, destLng: number) => {
-    const originParam = driverLocation 
-      ? `&origin=${driverLocation.lat},${driverLocation.lng}` 
-      : '';
-    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destLat},${destLng}&travelmode=driving`;
+    // Do NOT pass origin — Google Maps will use the device's real GPS location
+    // as the starting point, which is far more accurate than our stored DB coordinates
+    // (which can become identical to destination after "arrived" status sync).
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
     
     // Use anchor element to avoid ERR_BLOCKED_BY_RESPONSE in iframe contexts
     const link = document.createElement('a');
@@ -160,6 +160,7 @@ export default function DriverDashboard() {
   };
 
   // Estimate ETA: assume average speed of 40 km/h in city traffic
+  // Note: This is a rough estimate and does NOT account for real-time traffic conditions
   const estimateETA = (distanceKm: number): number => {
     return Math.max(1, Math.round((distanceKm / 40) * 60));
   };
@@ -245,13 +246,18 @@ export default function DriverDashboard() {
                   <CardTitle className="text-lg">Navigation</CardTitle>
               <CardDescription>
                     {distanceToRequester !== null && (
-                      <div className="flex items-center gap-3">
-                        <span className="text-primary font-semibold">
-                          {distanceToRequester.toFixed(1)} km away
-                        </span>
-                        <span className="text-muted-foreground">•</span>
-                        <span className="text-primary font-semibold">
-                          ~{estimateETA(distanceToRequester)} min ETA
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3">
+                          <span className="text-primary font-semibold">
+                            {distanceToRequester.toFixed(1)} km away
+                          </span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-primary font-semibold">
+                            ~{estimateETA(distanceToRequester)} min ETA
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          Estimate only — does not account for traffic
                         </span>
                       </div>
                     )}
