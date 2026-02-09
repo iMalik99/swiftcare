@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Ambulance, MapPin, Phone, ArrowLeft, Loader2 } from 'lucide-react';
+import { Ambulance, MapPin, Phone, ArrowLeft, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -36,13 +36,15 @@ export default function RequestAmbulance() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [locationSource, setLocationSource] = useState<'none' | 'gps' | 'address'>('none');
   const [formData, setFormData] = useState({
     requesterName: '',
     requesterPhone: '',
     emergencyType: '',
     description: '',
     locationAddress: '',
-    locationLat: 9.0579, // Default: Abuja center
+    locationLat: 9.0579,
     locationLng: 7.4951,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,10 +59,11 @@ export default function RequestAmbulance() {
             locationLat: position.coords.latitude,
             locationLng: position.coords.longitude,
           }));
+          setLocationSource('gps');
           toast.success('Location captured successfully');
           setGettingLocation(false);
         },
-        (error) => {
+        () => {
           toast.error('Could not get location. Please enter address manually.');
           setGettingLocation(false);
         },
@@ -71,6 +74,39 @@ export default function RequestAmbulance() {
       setGettingLocation(false);
     }
   };
+
+  const geocodeAddress = useCallback(async () => {
+    const address = formData.locationAddress.trim();
+    if (!address) {
+      toast.error('Please enter an address first');
+      return;
+    }
+    setGeocoding(true);
+    try {
+      const query = `${address}, Abuja, Nigeria`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=ng`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      const results = await res.json();
+      if (results && results.length > 0) {
+        const { lat, lon } = results[0];
+        setFormData(prev => ({
+          ...prev,
+          locationLat: parseFloat(lat),
+          locationLng: parseFloat(lon),
+        }));
+        setLocationSource('address');
+        toast.success('Address found! Location updated.');
+      } else {
+        toast.error('Address not found. Try a more specific address or use GPS.');
+      }
+    } catch {
+      toast.error('Failed to look up address. Please try again or use GPS.');
+    } finally {
+      setGeocoding(false);
+    }
+  }, [formData.locationAddress]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,29 +191,45 @@ export default function RequestAmbulance() {
               {/* Location */}
               <div className="space-y-2">
                 <Label>Your Location *</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={getLocation}
+                  disabled={gettingLocation}
+                >
+                  {gettingLocation ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <MapPin className="h-4 w-4 mr-2" />
+                  )}
+                  Use My GPS Location
+                </Button>
                 <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={getLocation}
-                    disabled={gettingLocation}
+                  <Input
+                    placeholder="Or enter address (e.g. Garki Hospital)"
+                    value={formData.locationAddress}
+                    onChange={e => setFormData(prev => ({ ...prev, locationAddress: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); geocodeAddress(); } }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={geocodeAddress}
+                    disabled={geocoding || !formData.locationAddress.trim()}
                   >
-                    {gettingLocation ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {geocoding ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <MapPin className="h-4 w-4 mr-2" />
+                      <Search className="h-4 w-4" />
                     )}
-                    Use My Location
                   </Button>
                 </div>
-                <Input
-                  placeholder="Or enter address manually"
-                  value={formData.locationAddress}
-                  onChange={e => setFormData(prev => ({ ...prev, locationAddress: e.target.value }))}
-                />
                 <p className="text-xs text-muted-foreground">
-                  Coordinates: {formData.locationLat.toFixed(4)}, {formData.locationLng.toFixed(4)}
+                  {locationSource === 'gps' && '📍 GPS location captured'}
+                  {locationSource === 'address' && '📍 Location set from address'}
+                  {locationSource === 'none' && '⚠️ Please use GPS or search an address'}
+                  {' · '}Coordinates: {formData.locationLat.toFixed(4)}, {formData.locationLng.toFixed(4)}
                 </p>
               </div>
 
