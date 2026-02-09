@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Ambulance, LogOut, MapPin, Phone, Clock, User, AlertCircle, Loader2, Navigation } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -181,6 +183,28 @@ export default function DriverDashboard() {
     );
   }
 
+  const isAvailable = ambulance ? ambulance.status !== 'offline' : false;
+  const hasActiveAssignment = requests.length > 0;
+
+  const toggleAvailability = async () => {
+    if (!ambulance) return;
+    if (hasActiveAssignment && isAvailable) {
+      toast.error('Cannot go offline with active assignments');
+      return;
+    }
+    const newStatus = isAvailable ? 'offline' : 'available';
+    const { error } = await supabase
+      .from('ambulances')
+      .update({ status: newStatus })
+      .eq('id', ambulance.id);
+    if (error) {
+      toast.error('Failed to update availability');
+    } else {
+      toast.success(newStatus === 'available' ? 'You are now online' : 'You are now offline');
+      fetchData();
+    }
+  };
+
   const activeRequest = requests[0]; // Primary active request
   const driverLocation = ambulance && ambulance.current_lat && ambulance.current_lng 
     ? { lat: ambulance.current_lat, lng: ambulance.current_lng } 
@@ -212,9 +236,22 @@ export default function DriverDashboard() {
           </div>
           <div className="flex items-center gap-3">
             {ambulance && (
-              <Badge variant="outline" className="font-mono">
-                {ambulance.plate_number}
-              </Badge>
+              <>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="availability"
+                    checked={isAvailable}
+                    onCheckedChange={toggleAvailability}
+                    disabled={hasActiveAssignment && isAvailable}
+                  />
+                  <Label htmlFor="availability" className={`text-sm font-medium ${isAvailable ? 'text-green-600' : 'text-muted-foreground'}`}>
+                    {isAvailable ? 'Online' : 'Offline'}
+                  </Label>
+                </div>
+                <Badge variant="outline" className="font-mono">
+                  {ambulance.plate_number}
+                </Badge>
+              </>
             )}
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4 mr-2" />
