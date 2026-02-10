@@ -236,22 +236,9 @@ export default function DriverDashboard() {
           </div>
           <div className="flex items-center gap-3">
             {ambulance && (
-              <>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="availability"
-                    checked={isAvailable}
-                    onCheckedChange={toggleAvailability}
-                    disabled={hasActiveAssignment && isAvailable}
-                  />
-                  <Label htmlFor="availability" className={`text-sm font-medium ${isAvailable ? 'text-green-600' : 'text-muted-foreground'}`}>
-                    {isAvailable ? 'Online' : 'Offline'}
-                  </Label>
-                </div>
-                <Badge variant="outline" className="font-mono">
-                  {ambulance.plate_number}
-                </Badge>
-              </>
+              <Badge variant="outline" className="font-mono">
+                {ambulance.plate_number}
+              </Badge>
             )}
             <Button variant="ghost" size="sm" onClick={signOut}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -266,7 +253,20 @@ export default function DriverDashboard() {
         {ambulance && (
           <Card className="mb-6">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Your Ambulance</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Your Ambulance</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="availability"
+                    checked={isAvailable}
+                    onCheckedChange={toggleAvailability}
+                    disabled={hasActiveAssignment && isAvailable}
+                  />
+                  <Label htmlFor="availability" className={`text-sm font-medium ${isAvailable ? 'text-green-600' : 'text-muted-foreground'}`}>
+                    {isAvailable ? 'Online' : 'Offline'}
+                  </Label>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">

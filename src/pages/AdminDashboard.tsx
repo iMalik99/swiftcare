@@ -49,7 +49,7 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800',
   available: 'bg-green-100 text-green-800',
   busy: 'bg-amber-100 text-amber-800',
-  offline: 'bg-gray-100 text-gray-800',
+  offline: 'bg-red-100 text-red-800',
 };
 
 export default function AdminDashboard() {

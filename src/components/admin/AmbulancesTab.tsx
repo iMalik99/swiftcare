@@ -132,10 +132,13 @@ export default function AmbulancesTab({
           <CardTitle className="text-lg">Live Fleet Map</CardTitle>
           <CardDescription>
             <span className="inline-flex items-center gap-2 mr-4">
-              <span className="w-3 h-3 rounded-full bg-primary"></span> Available Ambulance
+              <span className="w-3 h-3 rounded-full bg-primary"></span> Available
             </span>
             <span className="inline-flex items-center gap-2 mr-4">
-              <span className="w-3 h-3 rounded-full bg-warning"></span> Busy Ambulance
+              <span className="w-3 h-3 rounded-full bg-warning"></span> Busy
+            </span>
+            <span className="inline-flex items-center gap-2 mr-4">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(0, 72%, 51%)' }}></span> Offline
             </span>
             <span className="inline-flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-destructive"></span> Emergency Request
