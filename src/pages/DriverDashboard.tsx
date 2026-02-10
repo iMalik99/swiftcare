@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import AmbulanceMap, { calculateDistance } from '@/components/AmbulanceMap';
+import NewAssignmentAlert from '@/components/NewAssignmentAlert';
 
 interface EmergencyRequest {
   id: string;
@@ -50,6 +51,9 @@ export default function DriverDashboard() {
   const [requests, setRequests] = useState<EmergencyRequest[]>([]);
   const [ambulance, setAmbulance] = useState<AmbulanceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertEmergencyType, setAlertEmergencyType] = useState<string>('');
+  const prevRequestCountRef = useRef(0);
 
   useEffect(() => {
     if (!authLoading && (!user || role !== 'driver')) {
@@ -97,7 +101,17 @@ export default function DriverDashboard() {
           table: 'emergency_requests',
           filter: `assigned_driver_id=eq.${user?.id}`,
         },
-        () => fetchData()
+        (payload) => {
+          // Detect new assignment (INSERT or status changed to 'assigned')
+          if (
+            payload.eventType === 'INSERT' ||
+            (payload.eventType === 'UPDATE' && (payload.new as any).status === 'assigned')
+          ) {
+            setShowAlert(true);
+            setAlertEmergencyType((payload.new as any).emergency_type || '');
+          }
+          fetchData();
+        }
       )
       .subscribe();
 
@@ -222,6 +236,13 @@ export default function DriverDashboard() {
 
   return (
     <div className="min-h-screen bg-muted/30">
+      {/* New Assignment Alert Banner */}
+      <NewAssignmentAlert
+        show={showAlert}
+        emergencyType={alertEmergencyType}
+        onDismiss={() => setShowAlert(false)}
+      />
+
       {/* Header */}
       <header className="border-b bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">

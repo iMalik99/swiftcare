@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Ambulance, ArrowLeft, Search, Clock, MapPin, User, Phone, CheckCircle, Truck, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import AmbulanceMap, { calculateDistance } from '@/components/AmbulanceMap';
 
 interface EmergencyRequest {
   id: string;
@@ -15,13 +16,23 @@ interface EmergencyRequest {
   emergency_type: string;
   description: string | null;
   location_address: string | null;
+  location_lat: number;
+  location_lng: number;
   status: string;
   created_at: string;
   assigned_ambulance_id: string | null;
+  assigned_driver_id: string | null;
 }
 
 interface AmbulanceInfo {
   plate_number: string;
+  current_lat: number | null;
+  current_lng: number | null;
+}
+
+interface DriverProfile {
+  full_name: string;
+  phone: string | null;
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -38,17 +49,29 @@ export default function TrackRequest() {
   const [searchCode, setSearchCode] = useState(trackingCode || '');
   const [request, setRequest] = useState<EmergencyRequest | null>(null);
   const [ambulanceInfo, setAmbulanceInfo] = useState<AmbulanceInfo | null>(null);
+  const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   const fetchAmbulanceInfo = async (ambulanceId: string) => {
     const { data: ambData } = await supabase
       .from('ambulances')
-      .select('plate_number')
+      .select('plate_number, current_lat, current_lng')
       .eq('id', ambulanceId)
       .single();
     if (ambData) {
       setAmbulanceInfo(ambData as AmbulanceInfo);
+    }
+  };
+
+  const fetchDriverProfile = async (driverId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('user_id', driverId)
+      .single();
+    if (data) {
+      setDriverProfile(data as DriverProfile);
     }
   };
 
@@ -64,15 +87,21 @@ export default function TrackRequest() {
       toast.error('Request not found. Please check your tracking code.');
       setRequest(null);
       setAmbulanceInfo(null);
+      setDriverProfile(null);
     } else {
       const reqData = data as EmergencyRequest;
       setRequest(reqData);
       
-      // Fetch ambulance plate number if assigned
       if (reqData.assigned_ambulance_id) {
         await fetchAmbulanceInfo(reqData.assigned_ambulance_id);
       } else {
         setAmbulanceInfo(null);
+      }
+
+      if (reqData.assigned_driver_id) {
+        await fetchDriverProfile(reqData.assigned_driver_id);
+      } else {
+        setDriverProfile(null);
       }
     }
     setSearched(true);
@@ -85,7 +114,7 @@ export default function TrackRequest() {
     }
   }, [trackingCode]);
 
-  // Realtime subscription - re-fetch full data on any update
+  // Realtime subscription for request updates
   useEffect(() => {
     if (!request) return;
 
@@ -103,9 +132,11 @@ export default function TrackRequest() {
           const updated = payload.new as EmergencyRequest;
           setRequest(updated);
           
-          // Always fetch ambulance info when there's an assignment
           if (updated.assigned_ambulance_id) {
             await fetchAmbulanceInfo(updated.assigned_ambulance_id);
+          }
+          if (updated.assigned_driver_id) {
+            await fetchDriverProfile(updated.assigned_driver_id);
           }
           
           toast.info('Status updated!');
@@ -118,6 +149,32 @@ export default function TrackRequest() {
     };
   }, [request?.id]);
 
+  // Realtime subscription for ambulance location updates (live map)
+  useEffect(() => {
+    if (!request?.assigned_ambulance_id) return;
+
+    const channel = supabase
+      .channel(`ambulance-location-${request.assigned_ambulance_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'ambulances',
+          filter: `id=eq.${request.assigned_ambulance_id}`,
+        },
+        (payload) => {
+          const updated = payload.new as AmbulanceInfo & { id: string };
+          setAmbulanceInfo(prev => prev ? { ...prev, current_lat: updated.current_lat, current_lng: updated.current_lng } : null);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [request?.assigned_ambulance_id]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchCode.trim()) {
@@ -126,6 +183,23 @@ export default function TrackRequest() {
   };
 
   const status = request ? statusConfig[request.status] : null;
+
+  // Build map locations
+  const isActiveStatus = request && ['assigned', 'en_route', 'arrived'].includes(request.status);
+  const ambulanceLocation = ambulanceInfo?.current_lat && ambulanceInfo?.current_lng
+    ? { lat: ambulanceInfo.current_lat, lng: ambulanceInfo.current_lng }
+    : null;
+  const requesterLocation = request ? { lat: request.location_lat, lng: request.location_lng } : null;
+
+  const mapLocations = [
+    ...(ambulanceLocation ? [{ lat: ambulanceLocation.lat, lng: ambulanceLocation.lng, label: `Ambulance ${ambulanceInfo?.plate_number}`, type: 'ambulance' as const }] : []),
+    ...(requesterLocation && isActiveStatus ? [{ lat: requesterLocation.lat, lng: requesterLocation.lng, label: 'Your Location', type: 'requester' as const }] : []),
+  ];
+
+  const distanceKm = ambulanceLocation && requesterLocation
+    ? calculateDistance(ambulanceLocation.lat, ambulanceLocation.lng, requesterLocation.lat, requesterLocation.lng)
+    : null;
+  const etaMinutes = distanceKm !== null ? Math.max(1, Math.round((distanceKm / 40) * 60)) : null;
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -209,6 +283,65 @@ export default function TrackRequest() {
                 </div>
               </div>
 
+              {/* Ambulance & Driver Info */}
+              {(ambulanceInfo || driverProfile) && (
+                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20 space-y-2">
+                  {ambulanceInfo && (
+                    <div className="flex items-center gap-3">
+                      <Truck className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Assigned Ambulance</p>
+                        <p className="text-base font-mono font-bold text-primary">{ambulanceInfo.plate_number}</p>
+                      </div>
+                    </div>
+                  )}
+                  {driverProfile && (
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Driver</p>
+                        <p className="text-sm font-semibold">{driverProfile.full_name}</p>
+                      </div>
+                    </div>
+                  )}
+                  {distanceKm !== null && etaMinutes !== null && isActiveStatus && (
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Estimated Arrival</p>
+                        <p className="text-sm font-semibold text-primary">
+                          {distanceKm.toFixed(1)} km away • ~{etaMinutes} min
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Live Map */}
+              {isActiveStatus && mapLocations.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Live Tracking</p>
+                  <div className="h-[250px] rounded-lg overflow-hidden border">
+                    <AmbulanceMap
+                      locations={mapLocations}
+                      showRoute={!!ambulanceLocation && !!requesterLocation}
+                      driverLocation={ambulanceLocation || undefined}
+                      requesterLocation={requesterLocation || undefined}
+                      zoom={13}
+                    />
+                  </div>
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: 'hsl(173, 80%, 40%)' }}></span> Ambulance
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-destructive"></span> Your Location
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Details */}
               <div className="space-y-3 pt-4 border-t">
                 <div className="flex items-center gap-3">
@@ -237,17 +370,6 @@ export default function TrackRequest() {
                     Requested: {new Date(request.created_at).toLocaleString()}
                   </span>
                 </div>
-
-                {/* Assigned Ambulance Plate Number — right after date/time */}
-                {ambulanceInfo && (
-                  <div className="flex items-center gap-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
-                    <Truck className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Assigned Ambulance</p>
-                      <p className="text-base font-mono font-bold text-primary">{ambulanceInfo.plate_number}</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {request.status === 'pending' && (
