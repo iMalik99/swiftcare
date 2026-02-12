@@ -37,15 +37,26 @@ export default function HomePage() {
             Fast, reliable emergency response for Abuja, FCT.
           </p>
           
-          <Link to="/request">
-            <Button 
-              size="lg" 
-              className="emergency-gradient shadow-emergency animate-pulse-emergency text-lg px-10 py-7 rounded-xl font-semibold"
-            >
-              <Phone className="mr-2 h-5 w-5" />
-              Request Ambulance Now
-            </Button>
-          </Link>
+          <div className="flex flex-col items-center gap-4">
+            <Link to="/about">
+              <Button 
+                size="lg" 
+                variant="outline"
+                className="text-lg px-10 py-6 rounded-xl font-semibold border-primary text-primary hover:bg-primary/5"
+              >
+                About Us
+              </Button>
+            </Link>
+            <Link to="/request">
+              <Button 
+                size="lg" 
+                className="emergency-gradient shadow-emergency animate-pulse-emergency text-lg px-10 py-7 rounded-xl font-semibold"
+              >
+                <Phone className="mr-2 h-5 w-5" />
+                Request Ambulance Now
+              </Button>
+            </Link>
+          </div>
           
           <p className="mt-6 text-sm text-muted-foreground">
             No login required • Available 24/7

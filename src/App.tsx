@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import HomePage from "./pages/HomePage";
+import AboutUs from "./pages/AboutUs";
 import RequestAmbulance from "./pages/RequestAmbulance";
 import TrackRequest from "./pages/TrackRequest";
 import Login from "./pages/Login";
@@ -23,6 +24,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutUs />} />
             <Route path="/request" element={<RequestAmbulance />} />
             <Route path="/track/:trackingCode" element={<TrackRequest />} />
             <Route path="/track" element={<TrackRequest />} />
