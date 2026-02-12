@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AmbulanceMap, { calculateDistance } from '@/components/AmbulanceMap';
 import NewAssignmentAlert from '@/components/NewAssignmentAlert';
+import DriverRequestHistory from '@/components/driver/DriverRequestHistory';
 
 interface EmergencyRequest {
   id: string;
@@ -90,33 +92,57 @@ export default function DriverDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Realtime subscription
+    // Realtime subscription — listen to ALL changes on emergency_requests
+    // without filter, then check in callback if it's relevant to this driver.
+    // This avoids issues where the auto_dispatch trigger sets assigned_driver_id
+    // during INSERT and the filter might not match the intermediate state.
     const channel = supabase
-      .channel('driver-requests')
+      .channel('driver-requests-all')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'emergency_requests',
-          filter: `assigned_driver_id=eq.${user?.id}`,
         },
         (payload) => {
-          // Detect new assignment (INSERT or status changed to 'assigned')
+          const newRow = payload.new as any;
+          // Only care about rows assigned to this driver
+          if (newRow?.assigned_driver_id !== user?.id) return;
+
+          // Detect new assignment
           if (
-            payload.eventType === 'INSERT' ||
-            (payload.eventType === 'UPDATE' && (payload.new as any).status === 'assigned')
+            newRow.status === 'assigned' &&
+            (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE')
           ) {
             setShowAlert(true);
-            setAlertEmergencyType((payload.new as any).emergency_type || '');
+            setAlertEmergencyType(newRow.emergency_type || '');
           }
           fetchData();
         }
       )
       .subscribe();
 
+    // Polling fallback every 15s in case realtime misses events
+    const pollInterval = setInterval(async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('emergency_requests')
+        .select('id, emergency_type')
+        .eq('assigned_driver_id', user.id)
+        .eq('status', 'assigned');
+      
+      if (data && data.length > prevRequestCountRef.current) {
+        setShowAlert(true);
+        setAlertEmergencyType(data[0]?.emergency_type || '');
+      }
+      prevRequestCountRef.current = data?.length || 0;
+      fetchData();
+    }, 15000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [user]);
 
@@ -360,103 +386,114 @@ export default function DriverDashboard() {
           </Card>
         )}
 
-        {/* Active Requests */}
-        <h2 className="font-display font-semibold text-lg mb-4">Active Assignments</h2>
-        
-        {requests.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No active assignments</p>
-              <p className="text-sm text-muted-foreground mt-1">New emergencies will appear here</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {requests.map(request => {
-              const distance = driverLocation 
-                ? calculateDistance(driverLocation.lat, driverLocation.lng, request.location_lat, request.location_lng)
-                : null;
+        {/* Tabs for Active / History */}
+        <Tabs defaultValue="active" className="w-full">
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="active" className="flex-1">Active Assignments</TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">Trip History</TabsTrigger>
+          </TabsList>
 
-              return (
-                <Card key={request.id} className="shadow-md">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardDescription>{request.tracking_code}</CardDescription>
-                        <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
-                        {distance !== null && (
-                          <p className="text-sm text-primary font-semibold mt-1">
-                            {distance.toFixed(1)} km away • ~{estimateETA(distance)} min ETA
-                          </p>
-                        )}
-                      </div>
-                      <Badge className={statusColors[request.status]}>
-                        {request.status.replace('_', ' ')}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <a href={`tel:${request.requester_phone}`} className="text-primary hover:underline font-medium">
-                          {request.requester_phone}
-                        </a>
-                      </div>
-                      {request.requester_name && (
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{request.requester_name}</span>
-                        </div>
-                      )}
-                      {request.location_address && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span>{request.location_address}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span>{new Date(request.created_at).toLocaleString()}</span>
-                      </div>
-                      {request.description && (
-                        <p className="text-muted-foreground mt-2 p-2 bg-muted rounded">
-                          {request.description}
-                        </p>
-                      )}
-                    </div>
+          <TabsContent value="active">
+            {requests.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No active assignments</p>
+                  <p className="text-sm text-muted-foreground mt-1">New emergencies will appear here</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {requests.map(request => {
+                  const distance = driverLocation 
+                    ? calculateDistance(driverLocation.lat, driverLocation.lng, request.location_lat, request.location_lng)
+                    : null;
 
-                    <div className="flex gap-2 pt-2 border-t">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => openMaps(request.location_lat, request.location_lng)}
-                      >
-                        <MapPin className="h-4 w-4 mr-1" />
-                        Navigate
-                      </Button>
-                      
-                      <Select 
-                        value={request.status}
-                        onValueChange={(value) => updateRequestStatus(request.id, value)}
-                      >
-                        <SelectTrigger className="w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="en_route">En Route</SelectItem>
-                          <SelectItem value="arrived">Arrived</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                  return (
+                    <Card key={request.id} className="shadow-md">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardDescription>{request.tracking_code}</CardDescription>
+                            <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
+                            {distance !== null && (
+                              <p className="text-sm text-primary font-semibold mt-1">
+                                {distance.toFixed(1)} km away • ~{estimateETA(distance)} min ETA
+                              </p>
+                            )}
+                          </div>
+                          <Badge className={statusColors[request.status]}>
+                            {request.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <a href={`tel:${request.requester_phone}`} className="text-primary hover:underline font-medium">
+                              {request.requester_phone}
+                            </a>
+                          </div>
+                          {request.requester_name && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span>{request.requester_name}</span>
+                            </div>
+                          )}
+                          {request.location_address && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-muted-foreground" />
+                              <span>{request.location_address}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span>{new Date(request.created_at).toLocaleString()}</span>
+                          </div>
+                          {request.description && (
+                            <p className="text-muted-foreground mt-2 p-2 bg-muted rounded">
+                              {request.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 pt-2 border-t">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openMaps(request.location_lat, request.location_lng)}
+                          >
+                            <MapPin className="h-4 w-4 mr-1" />
+                            Navigate
+                          </Button>
+                          
+                          <Select 
+                            value={request.status}
+                            onValueChange={(value) => updateRequestStatus(request.id, value)}
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="en_route">En Route</SelectItem>
+                              <SelectItem value="arrived">Arrived</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="history">
+            {user && <DriverRequestHistory userId={user.id} />}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
