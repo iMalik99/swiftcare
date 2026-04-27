@@ -27,6 +27,7 @@ interface EmergencyRequest {
   location_lng: number;
   status: string;
   created_at: string;
+  assigned_driver_id?: string | null;
 }
 
 interface AmbulanceData {
@@ -106,7 +107,7 @@ export default function DriverDashboard() {
           table: 'emergency_requests',
         },
         (payload) => {
-          const newRow = payload.new as any;
+          const newRow = payload.new as Partial<EmergencyRequest>;
           // Only care about rows assigned to this driver
           if (newRow?.assigned_driver_id !== user?.id) return;
 
@@ -365,15 +366,15 @@ export default function DriverDashboard() {
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-3">
                           <span className="text-primary font-semibold">
-                            {distanceToRequester.toFixed(1)} km away
+                            Approx. {distanceToRequester.toFixed(1)} km away
                           </span>
                           <span className="text-muted-foreground">•</span>
                           <span className="text-primary font-semibold">
-                            ~{estimateETA(distanceToRequester)} min ETA
+                            Approx. {estimateETA(distanceToRequester)} min ETA
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          Estimate only — does not account for traffic
+                          Straight-line estimate only — Google Maps provides actual road navigation
                         </span>
                       </div>
                     )}
@@ -442,7 +443,7 @@ export default function DriverDashboard() {
                             <CardTitle className="text-lg">{request.emergency_type}</CardTitle>
                             {distance !== null && (
                               <p className="text-sm text-primary font-semibold mt-1">
-                                {distance.toFixed(1)} km away • ~{estimateETA(distance)} min ETA
+                                Approx. {distance.toFixed(1)} km away • Approx. {estimateETA(distance)} min ETA
                               </p>
                             )}
                           </div>
