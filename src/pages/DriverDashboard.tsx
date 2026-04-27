@@ -27,6 +27,7 @@ interface EmergencyRequest {
   location_lng: number;
   status: string;
   created_at: string;
+  assigned_driver_id?: string | null;
 }
 
 interface AmbulanceData {
