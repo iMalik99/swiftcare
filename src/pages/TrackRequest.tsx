@@ -308,9 +308,12 @@ export default function TrackRequest() {
                     <div className="flex items-center gap-3">
                       <Clock className="h-5 w-5 text-primary" />
                       <div>
-                        <p className="text-xs text-muted-foreground">Estimated Arrival</p>
+                        <p className="text-xs text-muted-foreground">Approx. Estimated Arrival</p>
                         <p className="text-sm font-semibold text-primary">
-                          {distanceKm.toFixed(1)} km away • ~{etaMinutes} min
+                          Approx. {distanceKm.toFixed(1)} km away • Approx. {etaMinutes} min
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Straight-line estimate only — road travel may vary
                         </p>
                       </div>
                     </div>
