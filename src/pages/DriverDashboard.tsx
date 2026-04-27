@@ -169,7 +169,11 @@ export default function DriverDashboard() {
         else if (newStatus === 'en_route') ambStatus = 'en_route';
         else if (newStatus === 'arrived') ambStatus = 'arrived';
         
-        const updateData: Record<string, unknown> = { status: ambStatus };
+        const updateData: {
+          status: string;
+          current_lat?: number;
+          current_lng?: number;
+        } = { status: ambStatus };
         
         // When arrived, move ambulance location to the requester's location
         if (newStatus === 'arrived' && request) {
@@ -193,11 +197,33 @@ export default function DriverDashboard() {
     }
   };
 
-  const openMaps = (destLat: number, destLng: number) => {
-    // Do NOT pass origin — Google Maps will use the device's real GPS location
-    // as the starting point, which is far more accurate than our stored DB coordinates
-    // (which can become identical to destination after "arrived" status sync).
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`;
+  const getAmbulanceCoordinates = (ambulanceData: AmbulanceData | null) => {
+    if (!ambulanceData) return null;
+
+    const lat = ambulanceData.current_lat ?? ambulanceData.base_lat;
+    const lng = ambulanceData.current_lng ?? ambulanceData.base_lng;
+
+    if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+    return { lat, lng };
+  };
+
+  const openMaps = (request: EmergencyRequest) => {
+    const origin = getAmbulanceCoordinates(ambulance);
+
+    if (!origin) {
+      toast.error('Ambulance location is unavailable. Update ambulance coordinates before navigating.');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      api: '1',
+      origin: `${origin.lat},${origin.lng}`,
+      destination: `${request.location_lat},${request.location_lng}`,
+      travelmode: 'driving',
+      dir_action: 'navigate',
+    });
+
+    const url = `https://www.google.com/maps/dir/?${params.toString()}`;
     
     // Use anchor element to avoid ERR_BLOCKED_BY_RESPONSE in iframe contexts
     const link = document.createElement('a');
@@ -246,9 +272,7 @@ export default function DriverDashboard() {
   };
 
   const activeRequest = requests[0]; // Primary active request
-  const driverLocation = ambulance && ambulance.current_lat && ambulance.current_lng 
-    ? { lat: ambulance.current_lat, lng: ambulance.current_lng } 
-    : null;
+  const driverLocation = getAmbulanceCoordinates(ambulance);
   const requesterLocation = activeRequest ? { lat: activeRequest.location_lat, lng: activeRequest.location_lng } : null;
   
   const distanceToRequester = driverLocation && requesterLocation
@@ -356,7 +380,7 @@ export default function DriverDashboard() {
                   </CardDescription>
                 </div>
                 <Button 
-                  onClick={() => openMaps(activeRequest.location_lat, activeRequest.location_lng)}
+                  onClick={() => openMaps(activeRequest)}
                   className="emergency-gradient"
                 >
                   <Navigation className="h-4 w-4 mr-2" />
@@ -462,7 +486,7 @@ export default function DriverDashboard() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => openMaps(request.location_lat, request.location_lng)}
+                            onClick={() => openMaps(request)}
                           >
                             <MapPin className="h-4 w-4 mr-1" />
                             Navigate
