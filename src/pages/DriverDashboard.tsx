@@ -169,7 +169,11 @@ export default function DriverDashboard() {
         else if (newStatus === 'en_route') ambStatus = 'en_route';
         else if (newStatus === 'arrived') ambStatus = 'arrived';
         
-        const updateData: Record<string, unknown> = { status: ambStatus };
+        const updateData: {
+          status: string;
+          current_lat?: number;
+          current_lng?: number;
+        } = { status: ambStatus };
         
         // When arrived, move ambulance location to the requester's location
         if (newStatus === 'arrived' && request) {
@@ -376,7 +380,7 @@ export default function DriverDashboard() {
                   </CardDescription>
                 </div>
                 <Button 
-                  onClick={() => openMaps(activeRequest.location_lat, activeRequest.location_lng)}
+                  onClick={() => openMaps(activeRequest)}
                   className="emergency-gradient"
                 >
                   <Navigation className="h-4 w-4 mr-2" />
@@ -482,7 +486,7 @@ export default function DriverDashboard() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => openMaps(request.location_lat, request.location_lng)}
+                            onClick={() => openMaps(request)}
                           >
                             <MapPin className="h-4 w-4 mr-1" />
                             Navigate
