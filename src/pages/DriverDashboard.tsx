@@ -106,7 +106,7 @@ export default function DriverDashboard() {
           table: 'emergency_requests',
         },
         (payload) => {
-          const newRow = payload.new as any;
+          const newRow = payload.new as Partial<EmergencyRequest>;
           // Only care about rows assigned to this driver
           if (newRow?.assigned_driver_id !== user?.id) return;
 
