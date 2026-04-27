@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+interface WindowWithWebkitAudioContext extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 interface NewAssignmentAlertProps {
   show: boolean;
   emergencyType?: string;
@@ -11,7 +15,9 @@ interface NewAssignmentAlertProps {
 // Generate alert beep using Web Audio API
 function playAlertSound() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextConstructor = window.AudioContext || (window as WindowWithWebkitAudioContext).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+    const ctx = new AudioContextConstructor();
     const playBeep = (startTime: number, freq: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
