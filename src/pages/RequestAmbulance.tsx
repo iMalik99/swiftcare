@@ -32,9 +32,38 @@ const emergencyTypes = [
   'Other'
 ];
 
+const DEFAULT_ABUJA_LOCATION = {
+  lat: 9.0579,
+  lng: 7.4951,
+};
+
+const getRequestErrorMessage = (error: { message?: string; code?: string } | null) => {
+  if (!error) return 'Unable to submit request. Please try again.';
+  const message = error.message?.toLowerCase() ?? '';
+
+  if (message.includes('failed to fetch') || message.includes('network') || message.includes('timeout')) {
+    return 'Network issue: please check your connection and try again.';
+  }
+
+  if (message.includes('row-level security') || error.code === '42501') {
+    return 'Request could not be accepted right now due to a backend permission issue.';
+  }
+
+  if (message.includes('tracking_code') || message.includes('duplicate')) {
+    return 'We could not generate a tracking code. Please try again.';
+  }
+
+  if (message.includes('location_lat') || message.includes('location_lng')) {
+    return 'Missing location: use GPS, search an address, or type your address before submitting.';
+  }
+
+  return error.message || 'Unable to submit request. Please try again.';
+};
+
 export default function RequestAmbulance() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [locationSource, setLocationSource] = useState<'none' | 'gps' | 'address'>('none');
@@ -44,8 +73,8 @@ export default function RequestAmbulance() {
     emergencyType: '',
     description: '',
     locationAddress: '',
-    locationLat: 9.0579,
-    locationLng: 7.4951,
+    locationLat: DEFAULT_ABUJA_LOCATION.lat,
+    locationLng: DEFAULT_ABUJA_LOCATION.lng,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -111,12 +140,26 @@ export default function RequestAmbulance() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setDispatching(false);
+    const hasTypedAddress = formData.locationAddress.trim().length > 0;
+
+    if (locationSource === 'none' && !hasTypedAddress) {
+      setErrors({ locationAddress: 'Use GPS, search an address, or type your address before submitting.' });
+      toast.error('Missing location: please provide your pickup location.');
+      return;
+    }
+
+    const requestLocation = locationSource === 'none' && hasTypedAddress
+      ? DEFAULT_ABUJA_LOCATION
+      : { lat: formData.locationLat, lng: formData.locationLng };
     
     const validation = requestSchema.safeParse({
       ...formData,
       requesterName: formData.requesterName || undefined,
       description: formData.description || undefined,
       locationAddress: formData.locationAddress || undefined,
+      locationLat: requestLocation.lat,
+      locationLng: requestLocation.lng,
     });
     
     if (!validation.success) {
@@ -131,6 +174,8 @@ export default function RequestAmbulance() {
     }
     
     setLoading(true);
+    setDispatching(true);
+    toast.info('Searching for nearest ambulance...');
     
     const { data, error } = await supabase
       .from('emergency_requests')
@@ -140,19 +185,24 @@ export default function RequestAmbulance() {
         emergency_type: formData.emergencyType,
         description: formData.description || null,
         location_address: formData.locationAddress || null,
-        location_lat: formData.locationLat,
-        location_lng: formData.locationLng,
+        location_lat: requestLocation.lat,
+        location_lng: requestLocation.lng,
       })
-      .select('tracking_code')
+      .select('tracking_code, status, assigned_ambulance_id')
       .single();
     
     if (error) {
-      toast.error('Failed to submit request. Please try again.');
+      toast.error(getRequestErrorMessage(error));
       setLoading(false);
+      setDispatching(false);
       return;
     }
     
-    toast.success('Emergency request submitted!');
+    if (!data.assigned_ambulance_id || data.status === 'pending') {
+      toast.warning('Request submitted, but no ambulance is available yet. Keep this tracking code open for updates.');
+    } else {
+      toast.success('Ambulance assigned. Opening live tracking...');
+    }
     navigate(`/track/${data.tracking_code}`);
   };
 
@@ -228,9 +278,11 @@ export default function RequestAmbulance() {
                 <p className="text-xs text-muted-foreground">
                   {locationSource === 'gps' && '📍 GPS location captured'}
                   {locationSource === 'address' && '📍 Location set from address'}
-                  {locationSource === 'none' && '⚠️ Please use GPS or search an address'}
+                  {locationSource === 'none' && formData.locationAddress.trim() && '📍 Typed address will be used'}
+                  {locationSource === 'none' && !formData.locationAddress.trim() && '⚠️ Please use GPS, search, or type an address'}
                   {' · '}Coordinates: {formData.locationLat.toFixed(4)}, {formData.locationLng.toFixed(4)}
                 </p>
+                {errors.locationAddress && <p className="text-sm text-destructive">{errors.locationAddress}</p>}
               </div>
 
               {/* Emergency Type */}
@@ -295,7 +347,7 @@ export default function RequestAmbulance() {
                 ) : (
                   <Ambulance className="h-5 w-5 mr-2" />
                 )}
-                Submit Emergency Request
+                {dispatching ? 'Searching for nearest ambulance...' : 'Submit Emergency Request'}
               </Button>
             </form>
           </CardContent>
