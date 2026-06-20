@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Ambulance, ArrowLeft, Heart, Target, AlertTriangle, Phone, Mail } from 'lucide-react';
+import { Ambulance, ArrowLeft, Heart, Target, AlertTriangle, Phone, Mail, Linkedin } from 'lucide-react';
 
 export default function AboutUs() {
   return (
@@ -82,10 +82,19 @@ export default function AboutUs() {
             <h2 className="font-display text-2xl font-bold">Contact / Admin</h2>
           </div>
           <p className="text-muted-foreground mb-6">
-            Have questions, feedback, or need to reach the team? Get in touch below.
+            SwiftCare is founded and administered by{' '}
+            <a
+              href="https://www.linkedin.com/in/imam-malik-murtala-a6280b229"
+              target="_blank"
+              rel="me noopener noreferrer"
+              className="font-semibold text-foreground hover:text-primary underline-offset-4 hover:underline"
+            >
+              Imam-Malik Murtala
+            </a>
+            . Have questions, feedback, or need to reach the team? Get in touch below.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="grid sm:grid-cols-2 gap-4">
             <a
               href="tel:+2347040653233"
               className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:shadow-md transition-shadow group"
@@ -109,6 +118,21 @@ export default function AboutUs() {
               <div>
                 <p className="text-xs text-muted-foreground">Email us</p>
                 <p className="font-medium text-sm">murtalaimam99@gmail.com</p>
+              </div>
+            </a>
+
+            <a
+              href="https://www.linkedin.com/in/imam-malik-murtala-a6280b229"
+              target="_blank"
+              rel="me noopener noreferrer"
+              className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:shadow-md transition-shadow group sm:col-span-2"
+            >
+              <div className="p-2.5 rounded-lg emergency-gradient text-primary-foreground group-hover:scale-110 transition-transform">
+                <Linkedin className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Connect on LinkedIn</p>
+                <p className="font-medium text-sm">Imam-Malik Murtala — Founder & Admin</p>
               </div>
             </a>
           </div>
