@@ -121,20 +121,6 @@ export default function AboutUs() {
               </div>
             </a>
 
-            <a
-              href="https://www.linkedin.com/in/imam-malik-murtala-a6280b229"
-              target="_blank"
-              rel="me noopener noreferrer"
-              className="flex items-center gap-3 p-4 rounded-xl border bg-card hover:shadow-md transition-shadow group sm:col-span-2"
-            >
-              <div className="p-2.5 rounded-lg emergency-gradient text-primary-foreground group-hover:scale-110 transition-transform">
-                <Linkedin className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Connect on LinkedIn</p>
-                <p className="font-medium text-sm">Imam-Malik Murtala — Founder & Admin</p>
-              </div>
-            </a>
           </div>
         </section>
       </main>
