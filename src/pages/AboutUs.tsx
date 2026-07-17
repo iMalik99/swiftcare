@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Ambulance, ArrowLeft, Heart, Target, AlertTriangle, Phone, Mail, Linkedin } from 'lucide-react';
+import { Ambulance, ArrowLeft, Heart, Target, AlertTriangle, Phone, Mail } from 'lucide-react';
 
 export default function AboutUs() {
   return (
